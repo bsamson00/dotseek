@@ -1,58 +1,80 @@
+<div align="center">
+
 # DotSeek
 
-**DotSeek** is a powerful command-line tool for checking domain availability using the Namecheap API. It provides intelligent caching, TLD filtering, batch processing capabilities, and flexible export options to help you find the perfect domain name efficiently.
+**Find available domain names from your terminal.**
+
+Fast, cached, batch domain availability checks powered by the Namecheap API.
+
+[![CI](https://github.com/bsamson00/dotseek/actions/workflows/ci.yml/badge.svg)](https://github.com/bsamson00/dotseek/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/bsamson00/dotseek)](go.mod)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+[Features](#features) ·
+[Installation](#installation) ·
+[Configuration](#configuration) ·
+[Usage](#usage) ·
+[Reference](#reference) ·
+[Troubleshooting](#troubleshooting)
+
+</div>
+
+```console
+$ dotseek myapp -l "<=3"
+--- Results (134 matching criteria) ---
+2-character TLDs (9)
+myapp.ac   myapp.ad   myapp.bz   myapp.cx   myapp.id
+myapp.la   myapp.so   myapp.to   myapp.ws
+--------------------------------------------------
+3-character TLDs (25)
+myapp.bar  myapp.cab  myapp.car  myapp.fan  myapp.gdn
+myapp.how  myapp.ing  myapp.ink  myapp.kim  myapp.lat
+...
+```
 
 ## Features
 
-- **Fast Domain Checking**: Batch API calls with intelligent caching
-- **Adaptive Display**: Results fit the current terminal width and group by TLD length
-- **TLD Filtering**: Filter by length, keywords, or custom criteria
-- **Premium Pricing**: Show registration and renewal prices when Namecheap provides them
-- **Whois Lookup**: With `-w`, show whois details for taken full domains
-- **Smart Caching**: Configurable cache, offline mode, stale labeling, and atomic writes
-- **Live Progress**: Animated spinner while checking the API and fetching whois
-- **Query Preview**: Show API batch count and estimated duration before checking
-- **Resilient Requests**: Visible, bounded retries for throttling and transient failures
-- **Interactive Quit**: Press `q` (or Ctrl+C) to stop; progress so far is saved to cache
-- **Controlled Color**: Automatic terminal detection plus `--color` and `NO_COLOR`
-- **Flexible Flag Order**: Flags may appear before or after the search terms
-- **Automation Output**: Write JSON, XML, YAML, TOML, or CSV to a file or stdout
-- **International Domains**: Normalize Unicode input to IDNA/Punycode automatically
-- **Diagnostics**: Built-in doctor, version, completion, and man-page commands
-- **Multiple TLD Sources**: Remote URL, local file, or embedded TLD lists
-- **Sandbox Support**: Test with Namecheap's sandbox environment
-- **TLD Descriptions**: Optional keyword descriptions for TLD context
+| | |
+|---|---|
+| **Batch checking** | Up to 50 domains per API call, with bounded retries and backoff |
+| **Smart caching** | Configurable cache age, offline mode, stale labeling, atomic writes |
+| **TLD filtering** | Filter by length (`<=3`, `>=5`) or by include and exclude keywords |
+| **Premium pricing** | Registration and renewal prices when Namecheap provides them |
+| **Whois lookup** | RDAP with a fallback to the system `whois` command |
+| **Adaptive display** | Grid sized to your terminal, grouped by TLD length |
+| **Structured export** | JSON, XML, YAML, TOML, or CSV, to a file or stdout |
+| **International domains** | Unicode input normalized to IDNA/Punycode |
+| **Profiles** | Named credential profiles, including Namecheap's sandbox |
+| **Automation friendly** | Dry runs, stable exit codes, clean stdout/stderr split |
+| **Shell integration** | `doctor`, `version`, completions, and a man page |
 
 ## Installation
 
-### Prerequisites
+**Requirements:** Go 1.26.5 or newer and a Namecheap account with
+[API access](https://www.namecheap.com/support/api/intro/) enabled. The
+`whois` command is optional and only used as a fallback for `-w`.
 
-- Go 1.26.5 or higher (see `go.mod`)
-- Namecheap API account with API access enabled
-- `whois` command available on PATH (optional; used as a fallback for `-w` on TLDs RDAP doesn't cover)
+### Go
 
-### Install with Go
-
-```bash
+```sh
 go install github.com/bsamson00/dotseek@latest
 ```
 
-### Install Script
+### Install script
 
-From a clone of the repository, `install.sh` builds DotSeek into
-`$DOTSEEK_INSTALL_DIR`, `$GOBIN`, or `~/.local/bin` (first one set). If the
-repository contains a `.env`, it is converted into a profile in
-`~/.config/dotseek/config.toml` so DotSeek works from any directory:
-
-```bash
+```sh
 git clone https://github.com/bsamson00/dotseek.git
 cd dotseek
 ./install.sh
 ```
 
-### Build from Source
+The script installs to `$DOTSEEK_INSTALL_DIR`, `$GOBIN`, or `~/.local/bin`
+(first one set). If the repository contains a `.env`, it is converted into a
+profile in `~/.config/dotseek/config.toml` so DotSeek works from any directory.
 
-```bash
+### From source
+
+```sh
 git clone https://github.com/bsamson00/dotseek.git
 cd dotseek
 go build -o dotseek
@@ -60,27 +82,28 @@ go build -o dotseek
 
 ## Configuration
 
-### Required Environment Variables
+### Namecheap credentials
 
-Copy `.env.example` to `.env` in your working directory and fill in your
-values, or set these environment variables:
+1. Log in to Namecheap and open **Profile > Tools > Namecheap API**.
+2. Enable API access and whitelist your public IP address.
+3. Note your API key and API username.
 
-```bash
+### Environment variables
+
+Copy `.env.example` to `.env` in your working directory, or export the
+variables in your shell:
+
+```sh
 NAMECHEAP_API_USER=your_api_username
-NAMECHEAP_API_KEY=your_api_key  
+NAMECHEAP_API_KEY=your_api_key
 NAMECHEAP_USERNAME=your_account_username
 NAMECHEAP_CLIENT_IP=your_whitelisted_ip
+NAMECHEAP_USE_SANDBOX=false   # optional, true uses the sandbox API
 ```
 
-### Optional Environment Variables
+### Named profiles
 
-```bash
-NAMECHEAP_USE_SANDBOX=true  # Use sandbox environment for testing
-```
-
-### Named Profiles
-
-Profiles live at `$XDG_CONFIG_HOME/dotseek/config.toml` (normally
+Profiles live in `$XDG_CONFIG_HOME/dotseek/config.toml` (normally
 `~/.config/dotseek/config.toml`):
 
 ```toml
@@ -101,262 +124,63 @@ client_ip = "203.0.113.10"
 use_sandbox = true
 ```
 
-Select one with `--profile sandbox` or `DOTSEEK_PROFILE=sandbox`. Explicit
-process environment variables override profile values; profile values override
-the local `.env` baseline.
+Select a profile with `--profile sandbox` or `DOTSEEK_PROFILE=sandbox`.
 
-### Getting Namecheap API Credentials
+> [!NOTE]
+> Precedence, highest first: process environment variables, then profile
+> values, then the local `.env` file.
 
-1. Log into your Namecheap account
-2. Go to Profile → Tools → Namecheap API
-3. Enable API access and whitelist your IP address
-4. Generate your API key and note your API username
+Verify your setup at any time:
+
+```sh
+dotseek doctor
+```
 
 ## Usage
 
-### Basic Usage
+### Check domains
 
-Check specific domains:
-```bash
-dotseek example.com google.org
+```sh
+dotseek example.com google.org      # specific domains
+dotseek myapp                       # one name across many TLDs
+dotseek --domains="example.com,myapp.io,testsite"
+dotseek bücher.com münchen          # Unicode is normalized automatically
 ```
 
-Check base domain against multiple TLDs:
-```bash
-dotseek myapp
+Flags may appear before or after the search terms, so
+`dotseek myapp -l "<=3" -a` is the same as `dotseek -l "<=3" -a myapp`.
+
+> [!TIP]
+> Run `dotseek --dry-run myapp` to preview the number of API checks, batches,
+> and estimated duration without making any requests. Queries larger than 200
+> checks ask for confirmation in an interactive terminal; pass `--yes` to skip
+> it in scripts.
+
+### Filter TLDs
+
+```sh
+dotseek -l 3 myapp                   # only 3-character TLDs
+dotseek -l "<4" myapp                # shorter than 4 characters
+dotseek -l ">=5" myapp               # 5 characters or longer
+dotseek -k "tech,business" myapp     # include tech or business TLDs
+dotseek -ek "adult,gambling" myapp   # exclude adult or gambling TLDs
 ```
 
-Flags may appear before or after the search terms:
-```bash
-dotseek myapp -l "<=3" -a      # same as: dotseek -l "<=3" -a myapp
+### Control what is shown
+
+```sh
+dotseek -a myapp     # show unavailable domains too
+dotseek -p myapp     # include premium domains
+dotseek -d myapp     # one result per line with TLD keyword descriptions
 ```
 
-Using the domains flag:
-```bash
-dotseek -domains="example.com,myapp.io,testsite"
-```
+### Whois
 
-Unicode names are accepted and normalized before checking:
-
-```bash
-dotseek bücher.com münchen
-```
-
-Preview the number of API checks, batches, and estimated duration without
-making an API request:
-
-```bash
-dotseek --dry-run myapp
-```
-
-Queries larger than 200 API checks ask for confirmation in an interactive
-terminal. Use `--yes` in unattended workflows.
-
-### TLD Filtering
-
-Filter by TLD length:
-```bash
-dotseek -l 3 myapp          # Only 3-character TLDs (.com, .net, .org)
-dotseek -l "<4" myapp       # TLDs shorter than 4 characters  
-dotseek -l ">=5" myapp      # TLDs 5 characters or longer
-```
-
-Filter by keywords:
-```bash
-dotseek -k "tech,business" myapp     # Include tech/business TLDs
-dotseek -ek "adult,gambling" myapp   # Exclude adult/gambling TLDs
-```
-
-### Display Options
-
-Show all domains (available and unavailable):
-```bash
-dotseek -a myapp
-```
-
-Include premium domains in results:
-```bash
-dotseek -p myapp
-```
-
-When the API supplies premium pricing, results show both the initial
-registration price and a different renewal price.
-
-Whois for full domains (`-w`). Checks availability first: if the domain is
-available it says so, otherwise it prints whois details (registrar, dates,
-status, nameservers). Uses RDAP with a fallback to the system `whois` command,
-and applies to full domains you pass with a TLD:
-```bash
+```sh
 dotseek -w example.com
 ```
-`-w` requires a full domain (with a TLD); using it with a bare search term
-(e.g. `dotseek -w myapp`) exits with an error, since there's nothing to look up.
 
-### Interactive Controls
-
-While checking the API or fetching whois, DotSeek shows an animated spinner.
-Press `q` (or Ctrl+C) at any time to stop the run early — any domains already
-checked are saved to the cache, so a later run resumes from where you left off.
-These controls are active only when running in an interactive terminal (they're
-skipped automatically when output is piped or redirected).
-
-Show TLD descriptions:
-```bash
-dotseek -d myapp
-# or
-dotseek -tld-descriptions myapp
-```
-
-### Export Options
-
-Export results to various formats:
-
-```bash
-# Export to JSON (format inferred from extension)
-dotseek -o results.json myapp
-
-# Export to CSV
-dotseek -o domains.csv myapp
-
-# Export with explicit format (overrides extension)
-dotseek -o myfile.txt -f yaml myapp
-
-# Export using format only (creates default filename)
-dotseek -f json myapp  # Creates results.json
-
-# Write structured data directly to stdout
-dotseek --json myapp | jq .
-dotseek --csv myapp > domains.csv
-```
-
-Supported export formats:
-- **JSON**: Structured data with full details
-- **XML**: Hierarchical format for system integration
-- **YAML**: Human-readable configuration format
-- **TOML**: Simple configuration format
-- **CSV**: Spreadsheet-compatible format
-
-All export formats include:
-- Timestamp of when the check was performed
-- Total domains evaluated, available, unavailable, unknown, and premium counts
-- Complete results for all evaluated domains (not just displayed ones)
-- A per-domain `status` of `available`, `unavailable`, or `unknown` (when no
-  result could be obtained), its source, stale state, and error details
-- Premium registration and renewal prices when available
-
-Exports are built from actual outcomes and remain correct with `--no-cache`.
-Direct stdout formats cannot be combined with file output or `-w`.
-
-Availability and premium are independent dimensions: an available premium
-domain is included in both `total_available` and `total_premium`.
-
-### Cache Management
-
-Disable cache for current run:
-```bash
-dotseek -no-cache myapp
-```
-
-Clear cache file:
-```bash
-dotseek -clear-cache
-```
-
-Set custom cache age (in seconds):
-```bash
-dotseek -cache-age 3600 myapp  # 1 hour
-```
-
-Use cached data without network requests. Expired entries are accepted and
-labeled stale; misses are reported as unresolved:
-
-```bash
-dotseek --offline myapp
-```
-
-### Custom TLD File
-
-Use a custom TLD file instead of the default sources:
-```bash
-dotseek -tld-file custom_tlds.csv myapp
-```
-
-## TLD File Format
-
-TLD files should be in CSV format with the following structure:
-
-```csv
-tld,keywords
-com,"commercial,business,general"
-org,"organization,nonprofit"
-net,"network,internet,tech"
-dev,"development,tech,programming"
-io,"tech,startup,input-output"
-ai,"artificial-intelligence,tech,innovation"
-```
-
-## TLD Source Priority
-
-DotSeek uses the embedded TLD list by default so runs are reproducible and do
-not depend on a mutable remote branch. Override it explicitly with:
-
-1. **Custom File**: `--tld-file custom_tlds.csv`
-2. **Remote Refresh**: `--refresh-tlds`, with validation and embedded fallback
-3. **Embedded List**: Default and fallback source
-
-The embedded catalog is synchronized with Namecheap's normal-search
-`namecheap.domains.getTldList` results. Extended-search-only entries, including
-Handshake domains that do not use the public DNS root, are excluded.
-
-## Output Format
-
-Results print in a grid sized to the current terminal width, split into sections
-by TLD length with a divider between each group.
-
-### Color Coding
-
-- **TLD green**: Available domains
-- **TLD red**: Unavailable domains (only shown with `-a`)
-- **Search term (gray)**: Dimmed so the colored TLD stands out
-- **Yellow**: Section headers, system messages, and sandbox notices
-
-> Note: terminal themes may remap ANSI colors, so exact shades vary.
-
-Use `--color auto` (default), `--color always`, or `--color never`. Automatic
-mode disables color for redirected output and when `NO_COLOR` is set.
-
-### Premium Indicators
-
-- **$**: Premium domain when no detailed price was returned
-- **$12.98/yr (renew $15.98)**: Registration and renewal pricing returned by the API
-
-### Example Output
-
-```
---- Results (134 matching criteria) ---
-2-character TLDs (9)
-myapp.ac   myapp.ad   myapp.bz   myapp.cx   myapp.id
-myapp.la   myapp.so   myapp.to   myapp.ws
---------------------------------------------------
-3-character TLDs (25)
-myapp.bar  myapp.cab  myapp.car  myapp.fan  myapp.gdn
-myapp.how  myapp.ing  myapp.ink  myapp.kim  myapp.lat
-...
-
-Finished. Evaluated 150 domains total.
-
---- Summary of All Evaluated Domains ---
-Available:   5
-Unavailable: 145  
-Premium:     12
-```
-
-When `-tld-descriptions` (`-d`) is set, results print one per line with their
-keyword descriptions instead of the grid.
-
-With `-w`, a whois section is appended for the full domains you passed:
-
-```
+```text
 --- Whois ---
 example.com is taken.
   Registrar:   RESERVED-Internet Assigned Numbers Authority
@@ -366,106 +190,127 @@ example.com is taken.
   Nameservers: a.iana-servers.net, b.iana-servers.net
 ```
 
-## Advanced Examples
+`-w` checks availability first and only prints whois details for taken
+domains. It requires a full domain with a TLD; `dotseek -w myapp` exits with
+an error.
 
-### Startup Domain Search
-```bash
-# Find short, tech-focused domains for a startup
-dotseek -l "<=4" -k "tech,startup" -p -d mystartup
+### Export results
+
+```sh
+dotseek -o results.json myapp        # format inferred from the extension
+dotseek -o myfile.txt -f yaml myapp  # explicit format wins
+dotseek -f json myapp                # writes results.json
+dotseek --json myapp | jq .          # straight to stdout
+dotseek --csv myapp > domains.csv
 ```
 
-### E-commerce Domain Search  
-```bash
-# Find business-appropriate domains, excluding adult content
-dotseek -k "business,commercial" -ek "adult,gambling" -a mystore
+Every export includes a timestamp, totals (evaluated, available, unavailable,
+unknown, premium), and every evaluated domain, not just the displayed ones.
+Each domain carries a `status` of `available`, `unavailable`, or `unknown`,
+plus its source, stale state, error details, and premium pricing when
+available.
+
+<details>
+<summary>Export notes</summary>
+
+- Exports are built from actual outcomes and remain correct with `--no-cache`.
+- Stdout formats cannot be combined with file output or `-w`.
+- Availability and premium are independent: an available premium domain
+  counts toward both `total_available` and `total_premium`.
+
+</details>
+
+### Cache
+
+```sh
+dotseek --offline myapp          # cache only; stale entries are labeled
+dotseek --no-cache myapp         # skip the cache for this run
+dotseek --cache-age 3600 myapp   # treat entries older than 1 hour as expired
+dotseek --clear-cache            # delete the cache file
 ```
 
-### Developer Portfolio
-```bash
-# Find developer-focused domains with descriptions
-dotseek -k "tech,development,personal" -d johndoe
+The cache lives at `~/.config/dotseek/cache.json` (honors `XDG_CONFIG_HOME`,
+directory mode `0700`, file mode `0600`). Entries expire after 24 hours by
+default and are written with a synced temporary file and atomic rename.
+
+Press `q` or Ctrl+C at any time to stop a run. Completed batches are saved to
+the cache, so the next run picks up where you left off.
+
+### Custom TLD lists
+
+DotSeek uses its embedded TLD catalog by default, so results are reproducible.
+The catalog is synchronized with Namecheap's normal-search TLD list; Handshake
+domains, which do not use the public DNS root, are excluded.
+
+```sh
+dotseek --tld-file custom_tlds.csv myapp   # use your own list
+dotseek --refresh-tlds myapp               # fetch the latest list from this repo
 ```
 
-### Comprehensive Domain Research
-```bash
-# Check everything, show all results with detailed info
-dotseek -a -p -d -cache-age 7200 brandname
+`--refresh-tlds` validates the downloaded list and falls back to the embedded
+catalog on failure. Custom files use CSV:
+
+```csv
+tld,keywords
+com,"commercial,business,general"
+dev,"development,tech,programming"
+io,"tech,startup,input-output"
 ```
 
-### Domain Research with Export
-```bash
-# Check domains and export to JSON for analysis
-dotseek -k "tech,startup" -o analysis.json mystartup
+## Reference
 
-# Export all results to CSV for spreadsheet analysis
-dotseek -a -p -o domains.csv -f csv brandname
+### Options
 
-# Export only available domains to YAML
-dotseek -o available.yaml myapp
+| Option | Description |
+|---|---|
+| `--domains` | Comma-separated search terms (alternative to positional args) |
+| `-l` | Filter TLDs by length, e.g. `3`, `<=4`, `>2` |
+| `-k` | Include only TLDs matching these keywords |
+| `-ek` | Exclude TLDs matching these keywords |
+| `-p` | Include premium domains |
+| `-a` | Show unavailable domains too |
+| `-w` | Whois for taken full domains |
+| `-d`, `--tld-descriptions` | Show TLD keyword descriptions, one per line |
+| `--tld-file` | Path to a custom TLD CSV file |
+| `--refresh-tlds` | Fetch the remote TLD list for this run |
+| `--profile` | Use a named configuration profile |
+| `-o`, `--output` | Write results to a file |
+| `-f`, `--format` | `json`, `xml`, `yaml`, `toml`, or `csv` |
+| `--json`, `--xml`, `--yaml`, `--toml`, `--csv` | Write that format to stdout |
+| `--no-cache` | Disable the cache for this run |
+| `--offline` | Use cached results only |
+| `--clear-cache` | Delete the cache file and exit |
+| `--cache-age` | Maximum cache age in seconds (default `86400`) |
+| `--delay` | Milliseconds between API batches (default `1000`) |
+| `--dry-run` | Show the query plan without calling the API |
+| `--yes` | Skip confirmation for large queries |
+| `--color` | `auto` (default), `always`, or `never` |
+| `--version` | Show build and TLD catalog details |
+
+### Commands
+
+```sh
+dotseek doctor [--profile NAME]    # check configuration and dependencies
+dotseek version                    # build and TLD catalog versions
+dotseek completion bash|zsh|fish   # shell completion script
+dotseek man > dotseek.1            # man page
 ```
 
-## Command-Line Options
+### Output
 
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--domains` | | Comma-separated domain names (base or FQDN) |
-| `--l` | `-l` | Filter TLDs by length (e.g., '3', '<4', '>=5') |
-| `--k` | `-k` | Include TLDs with specified keywords |
-| `--ek` | `-ek` | Exclude TLDs with specified keywords |
-| `--p` | `-p` | Include premium domains in results |
-| `--a` | `-a` | Show all domains (available and unavailable) |
-| `--w` | `-w` | For full domains: show whois if taken, else report it's available |
-| `--tld-descriptions` | `-d` | Show TLD keyword descriptions |
-| `--tld-file` | | Path to custom TLD file |
-| `--refresh-tlds` | | Explicitly fetch the remote TLD list for this run |
-| `--profile` | | Use a named XDG configuration profile |
-| `--output` | `-o` | Output to file (format inferred from extension) |
-| `--format` | `-f` | Output format (json\|xml\|yaml\|toml\|csv) |
-| `--json`, `--xml`, `--yaml`, `--toml`, `--csv` | | Write that format directly to stdout |
-| `--no-cache` | | Disable cache for this run |
-| `--offline` | | Use cache only; allow and label stale entries |
-| `--clear-cache` | | Clear cache file and exit |
-| `--cache-age` | | Maximum cache age in seconds (default: 86400) |
-| `--delay` | | Delay between API batches in milliseconds (default: 1000; lower is faster but may hit rate limits) |
-| `--dry-run` | | Print the query plan without API calls |
-| `--yes` | | Skip confirmation for large queries |
-| `--color` | | Color mode: auto, always, or never |
-| `--version` | | Print build and TLD catalog details |
+- Results and the summary go to **stdout**; progress, the spinner, warnings,
+  and notices go to **stderr**, so `dotseek myapp > results.txt` captures only
+  results.
+- Available TLDs are green, unavailable TLDs (with `-a`) are red, and the
+  search term is dimmed. Premium domains show `$`, or
+  `$12.98/yr (renew $15.98)` when the API returns pricing.
+- Color is disabled automatically when stdout is not a terminal or `NO_COLOR`
+  is set.
 
-## Caching System
-
-DotSeek uses a JSON-based caching system to minimize API calls and improve performance:
-
-- **Cache File**: `~/.config/dotseek/cache.json` (honors `XDG_CONFIG_HOME`; directory mode `0700`, file mode `0600`)
-- **Default Age**: 24 hours (86400 seconds)
-- **Cache Keys**: Domain names
-- **Cached Data**: Availability, premium pricing, source data, and timestamps
-- **Quit-Safe**: Pressing `q` or Ctrl+C mid-run flushes completed batches to the cache before exiting
-- **Crash-Resistant Writes**: Cache updates use a synced temporary file and atomic rename
-
-### Cache Benefits
-
-- Reduces API usage and costs
-- Faster repeated searches
-- Offline capability for previously checked domains
-- Configurable expiration
-
-## Error Handling
-
-DotSeek provides comprehensive error handling for:
-
-- **Network Issues**: Timeout and connection errors
-- **API Errors**: Namecheap API error responses  
-- **Invalid Domains**: Malformed domain name detection
-- **Missing Config**: Clear messages for missing credentials
-- **File Errors**: TLD file reading and parsing issues
-- **Export Errors**: Invalid format or file writing issues
-- **Partial Results**: Each unresolved domain includes a stable error code and message
-
-Stable process exit codes make automation predictable:
+### Exit codes
 
 | Code | Meaning |
-|------|---------|
+|---|---|
 | `0` | Success |
 | `1` | General error |
 | `2` | Invalid usage |
@@ -475,104 +320,63 @@ Stable process exit codes make automation predictable:
 | `6` | Input/output error |
 | `130` | Interrupted |
 
-## Rate Limiting
+### Rate limiting
 
-- **Batch Size**: Maximum 50 domains per API call
-- **Delay**: 1000ms between API batches by default; tune with `--delay <ms>` (use a
-  smaller value like `--delay 0` for speed on small queries, or a larger value if
-  you hit Namecheap rate limits on large multi-batch runs)
-- **Timeout**: 30-second request timeout
-- **Retries**: Timeouts, HTTP 408/425/429, and HTTP 5xx failures use visible,
-  bounded exponential backoff with jitter and `Retry-After` support
-
-## Output Streams
-
-Domain results and the summary go to **stdout**. Progress logs, export
-confirmations, the spinner, warnings, and notices go to **stderr**. This means
-you can safely redirect just the results:
-
-```bash
-dotseek myapp > results.txt   # results.txt contains only the domain output
-```
-
-ANSI colors are disabled automatically when stdout is not a terminal and when
-the `NO_COLOR` environment variable is set.
-
-## Diagnostics and Shell Integration
-
-Run end-to-end configuration and dependency checks:
-
-```bash
-dotseek doctor
-dotseek doctor --profile sandbox
-```
-
-Inspect build and embedded TLD catalog versions:
-
-```bash
-dotseek version
-```
-
-Generate completion scripts or a man page:
-
-```bash
-dotseek completion bash
-dotseek completion zsh
-dotseek completion fish
-dotseek man > dotseek.1
-man ./dotseek.1
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-MIT © Brian Samson ([www.samson.zone](https://www.samson.zone)). See [LICENSE](LICENSE).
-
-## Support
-
-- **Issues**: Report bugs and feature requests via [GitHub Issues](https://github.com/bsamson00/dotseek/issues)
-- **Documentation**: Check the embedded help with `dotseek --help`
-- **API Documentation**: [Namecheap API Docs](https://www.namecheap.com/support/api/)
+Requests are sent in batches of up to 50 domains with a 30 second timeout and
+a 1000 ms pause between batches. Tune the pause with `--delay`: `--delay 0`
+is fine for small queries, while larger values help on big multi-batch runs.
+Timeouts, HTTP 408/425/429, and 5xx responses are retried with exponential
+backoff, jitter, and `Retry-After` support.
 
 ## Troubleshooting
 
-### Common Issues
+<details>
+<summary><b>Missing required environment variables</b></summary>
 
-**"Missing required environment variables"**
-- Ensure all required environment variables are set in `.env` file or system environment
+Set all four `NAMECHEAP_*` credentials in `.env`, your shell, or a profile.
+Run `dotseek doctor` to see what is missing.
 
-**"API Error: Invalid IP"**  
-- Verify your IP address is whitelisted in Namecheap API settings
-- Check that `NAMECHEAP_CLIENT_IP` matches your actual IP
+</details>
 
-**"No TLDs loaded"**
-- Verify a file passed with `--tld-file` uses the documented CSV format
-- If using `--refresh-tlds`, check connectivity; DotSeek otherwise falls back
-  to the embedded list
-- Ensure the embedded TLD list is present in the binary
+<details>
+<summary><b>API Error: Invalid IP</b></summary>
 
-**"Cannot infer format from filename"**
-- Use the `-f` flag to explicitly specify the output format
-- Or use a standard file extension (.json, .xml, .yaml, .toml, .csv)
+Whitelist your public IP in the Namecheap API settings and make sure
+`NAMECHEAP_CLIENT_IP` matches it.
 
-**Cache Issues**
-- Use `--clear-cache` to reset cache file
-- Check write permissions for `~/.config/dotseek/`
-- Adjust `--cache-age` for different cache behavior
+</details>
 
-### Debugging
+<details>
+<summary><b>No TLDs loaded</b></summary>
 
-Enable verbose output by checking API responses and using cache debugging:
+Check that a `--tld-file` uses the CSV format above. With `--refresh-tlds`,
+check connectivity; DotSeek falls back to the embedded list otherwise.
 
-```bash
-# Clear cache and run with fresh data
-dotseek -clear-cache
-dotseek -no-cache -a -d myapp
-```
+</details>
+
+<details>
+<summary><b>Cannot infer format from filename</b></summary>
+
+Pass `-f` explicitly or use a `.json`, `.xml`, `.yaml`, `.toml`, or `.csv`
+extension.
+
+</details>
+
+<details>
+<summary><b>Stale or unexpected results</b></summary>
+
+Run `dotseek --clear-cache`, check write permissions on `~/.config/dotseek/`,
+or rerun with `--no-cache`.
+
+</details>
+
+## Contributing
+
+Bug reports and pull requests are welcome on
+[GitHub Issues](https://github.com/bsamson00/dotseek/issues). Before opening a
+pull request, make sure `gofmt -l .`, `go vet ./...`, and `go test ./...` are
+clean.
+
+## License
+
+[MIT](LICENSE) © Brian Samson ([www.samson.zone](https://www.samson.zone))
