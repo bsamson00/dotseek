@@ -1,0 +1,18 @@
+# Compiled binary
+/dotseek
+
+# Local cache (now lives in ~/.config/dotseek/, this is a stale artifact)
+cache.json
+.cache.json
+
+# Scratch / audit artifacts
+invalid_tlds.txt
+*.bak
+
+# Secrets
+.env
+
+# Local-only files
+.claude/
+docs/
+.sample.env
