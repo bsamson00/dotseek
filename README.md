@@ -6,7 +6,6 @@
 
 Fast, cached, batch domain availability checks powered by the Namecheap API.
 
-[![CI](https://github.com/bsamson00/dotseek/actions/workflows/ci.yml/badge.svg)](https://github.com/bsamson00/dotseek/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/bsamson00/dotseek)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
