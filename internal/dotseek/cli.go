@@ -169,11 +169,13 @@ func run(ctx context.Context, cancel context.CancelFunc, args []string, deps run
 	if deps.apiBaseURL != "" {
 		baseURL = deps.apiBaseURL
 	}
+	provider := newProvider()
+	maxDomainsPerAPICall = provider.batchSize()
 	if activeProfile != "" {
 		fmt.Fprintf(commandStderr, "Using profile: %s\n", activeProfile)
 	}
 	if doctorCommand {
-		return runDoctor(ctx, deps, activeProfile)
+		return runDoctor(ctx, deps, provider, activeProfile)
 	}
 
 	directFormat, err := selectDirectFormat(map[string]bool{
@@ -424,8 +426,8 @@ func run(ctx context.Context, cancel context.CancelFunc, args []string, deps run
 		return nil
 	}
 	if len(toCheck) > 0 {
-		if err := validateEnvVars(); err != nil {
-			return &cliError{code: exitConfig, err: err, hint: "Set the required NAMECHEAP_* values in the environment, .env file, or selected profile."}
+		if err := validateEnvVars(provider); err != nil {
+			return &cliError{code: exitConfig, err: err, hint: provider.credentialHint()}
 		}
 	}
 	if len(toCheck) > largeQueryThreshold && !*assumeYes && isTerminalFile(commandStdin) {
@@ -462,11 +464,11 @@ func run(ctx context.Context, cancel context.CancelFunc, args []string, deps run
 				}
 			}
 			// Animate a spinner while the (blocking) batch call runs.
-			var apiResp *NamecheapAPIResponse
+			var batch *batchResult
 			var err error
 			label := fmt.Sprintf("Processing API batch %d of %d...", i+1, len(chunks))
 			withSpinner(label, func() string {
-				apiResp, err = checkDomainChunkAvailability(ctx, deps.apiClient, chunk, displayRetry(commandStderr))
+				batch, err = checkDomainChunkAvailability(ctx, provider, deps.apiClient, chunk, displayRetry(commandStderr))
 				return ""
 			})
 			if err != nil {
@@ -484,37 +486,37 @@ func run(ctx context.Context, cancel context.CancelFunc, args []string, deps run
 				}
 				continue
 			}
-			if apiResp != nil {
-
-				softTLDNotFound := false
-				for _, e := range apiResp.Errors.ErrorList {
-					fmt.Fprintf(commandStderr, "\nAPI notice (%s): %s\n", e.Number, sanitizeTerminalText(e.Message))
-
-					if e.Number != tldNotFoundErrorNumber {
-						sawHardError = true
-					} else {
-						softTLDNotFound = true
-					}
+			if batch != nil {
+				for _, notice := range batch.Notices {
+					fmt.Fprintf(commandStderr, "\nAPI notice: %s\n", sanitizeTerminalText(notice))
 				}
-				validResults, validationErr := validateAPIResponse(apiResp, chunk)
+				if len(batch.Problems) > 0 {
+					sawHardError = true
+				}
+				validChecks, validationErr := validateBatchResult(batch, chunk)
 				if validationErr != nil {
 					fmt.Fprintf(commandStderr, "\nInvalid API response for batch %d of %d (%s): %v\n",
 						i+1, len(chunks), summarizeChunk(chunk), validationErr)
 					sawHardError = true
 					partialHardFailure = true
 				}
-				apiResp.CommandResponse.DomainCheckResult = validResults
-				for _, r := range validResults {
+				for _, check := range validChecks {
+					if check.Unsupported {
+						recordOutcome(check.Domain, domainOutcome{
+							source:       "api",
+							errorCode:    "unsupported_tld",
+							errorMessage: sanitizeTerminalText(check.Reason),
+						})
+						continue
+					}
 					apiResults++
-					avail := r.Available == "true"
-					prem := r.IsPremiumName == "true"
-					recordOutcome(r.Domain, domainOutcome{
-						available:                avail,
-						premium:                  prem,
+					recordOutcome(check.Domain, domainOutcome{
+						available:                check.Available,
+						premium:                  check.Premium,
 						known:                    true,
 						source:                   "api",
-						premiumRegistrationPrice: strings.TrimSpace(r.PremiumRegistrationPrice),
-						premiumRenewalPrice:      strings.TrimSpace(r.PremiumRenewalPrice),
+						premiumRegistrationPrice: check.RegistrationPrice,
+						premiumRenewalPrice:      check.RenewalPrice,
 					})
 				}
 				for _, domain := range chunk {
@@ -522,8 +524,8 @@ func run(ctx context.Context, cancel context.CancelFunc, args []string, deps run
 						continue
 					}
 					code, message := "missing_result", "API response did not include this domain"
-					if softTLDNotFound && validationErr == nil {
-						code, message = "unsupported_tld", "TLD is not supported by the Namecheap API"
+					if batch.UnsupportedTLD && validationErr == nil {
+						code, message = "unsupported_tld", fmt.Sprintf("TLD is not supported by the %s API", provider.name())
 					} else if validationErr != nil {
 						code, message = "invalid_response", sanitizeTerminalText(validationErr.Error())
 					}
@@ -533,7 +535,7 @@ func run(ctx context.Context, cancel context.CancelFunc, args []string, deps run
 						errorMessage: message,
 					})
 				}
-				chunkRes := processAPIResponseChunk(apiResp, *showAll, *includePremium, explicitMap, cacheData, useCacheRun)
+				chunkRes := processAPIResponseChunk(validChecks, *showAll, *includePremium, explicitMap, cacheData, useCacheRun)
 				results = append(results, chunkRes...)
 			}
 		}
@@ -646,7 +648,7 @@ func run(ctx context.Context, cancel context.CancelFunc, args []string, deps run
 			colorYellow, hiddenAvailablePremiumCount, colorReset)
 	}
 	if useSandbox {
-		fmt.Fprintf(commandStderr, "%sNote: Using Namecheap SANDBOX environment.%s\n", colorYellow, colorReset)
+		fmt.Fprintf(commandStderr, "%sNote: Using %s SANDBOX environment.%s\n", colorYellow, provider.name(), colorReset)
 	}
 	fmt.Fprintf(commandStderr, "\nFinished. Evaluated %d domains total.\n", len(all))
 

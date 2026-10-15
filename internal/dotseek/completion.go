@@ -81,8 +81,9 @@ dotseek \- check domain availability across top-level domains
 .B dotseek
 doctor|version|completion|man
 .SH DESCRIPTION
-DotSeek checks search terms and explicit domains with the Namecheap API. Results
-may be read from the local cache, printed for people, or encoded for automation.
+DotSeek checks search terms and explicit domains with the Namecheap API or the
+Cloudflare Registrar API. Results may be read from the local cache, printed for
+people, or encoded for automation.
 .SH COMMON OPTIONS
 .TP
 .B \-a
@@ -108,7 +109,8 @@ Write structured results directly to standard output.
 .SH COMMANDS
 .TP
 .B doctor
-Check configuration, network access, cache writes, Namecheap, RDAP, and whois.
+Check configuration, network access, cache writes, the registrar API, RDAP,
+and whois.
 .TP
 .B version
 Print build, Go runtime, and embedded TLD catalog versions.

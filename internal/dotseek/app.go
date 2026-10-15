@@ -7,14 +7,17 @@ import (
 )
 
 var (
-	apiUser    string
-	apiKey     string
-	username   string
-	clientIP   string
-	useSandbox bool
+	providerName string
+	apiUser      string
+	apiKey       string
+	username     string
+	clientIP     string
+	cfAccountID  string
+	cfAPIToken   string
+	useSandbox   bool
 
 	baseURL              = "https://api.namecheap.com/xml.response"
-	maxDomainsPerAPICall = 50
+	maxDomainsPerAPICall = 50 // overwritten from the active provider at run time
 	requestTimeout       = 60 * time.Second
 	defaultAPIDelayMs    = 1000 // default delay between API batches, in milliseconds
 	maxAPIAttempts       = 3

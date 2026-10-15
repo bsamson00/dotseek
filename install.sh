@@ -61,25 +61,50 @@ elif [ -f "$config_file" ] && [ "${DOTSEEK_FORCE_CONFIG:-0}" != 1 ]; then
 	echo "$config_file already exists; leaving it alone."
 	echo "Re-run with DOTSEEK_FORCE_CONFIG=1 to overwrite it from .env."
 else
-	sandbox=$(env_value NAMECHEAP_USE_SANDBOX)
+	provider=$(printf '%s' "$(env_value DOTSEEK_PROVIDER)" | tr '[:upper:]' '[:lower:]')
+	if [ -z "$provider" ]; then
+		if [ -n "$(env_value CLOUDFLARE_API_TOKEN)" ] && [ -z "$(env_value NAMECHEAP_API_KEY)" ]; then
+			provider=cloudflare
+		else
+			provider=namecheap
+		fi
+	fi
+	case "$provider" in
+		cloudflare) sandbox=$(env_value CLOUDFLARE_USE_SANDBOX) ;;
+		namecheap)  sandbox=$(env_value NAMECHEAP_USE_SANDBOX) ;;
+		*) echo "Unknown DOTSEEK_PROVIDER '$provider' in .env; use namecheap or cloudflare." >&2; exit 1 ;;
+	esac
 	case "$(printf '%s' "$sandbox" | tr '[:upper:]' '[:lower:]')" in
 		1|true|yes|on) sandbox=true ;;
 		*)             sandbox=false ;;
 	esac
 	mkdir -p "$config_dir"
 	umask 077
-	cat >"$config_file" <<-EOF
-		default_profile = "default"
+	if [ "$provider" = cloudflare ]; then
+		cat >"$config_file" <<-EOF
+			default_profile = "default"
 
-		[profiles.default]
-		api_user = "$(toml_escape "$(env_value NAMECHEAP_API_USER)")"
-		api_key = "$(toml_escape "$(env_value NAMECHEAP_API_KEY)")"
-		username = "$(toml_escape "$(env_value NAMECHEAP_USERNAME)")"
-		client_ip = "$(toml_escape "$(env_value NAMECHEAP_CLIENT_IP)")"
-		use_sandbox = $sandbox
-	EOF
+			[profiles.default]
+			provider = "cloudflare"
+			account_id = "$(toml_escape "$(env_value CLOUDFLARE_ACCOUNT_ID)")"
+			api_token = "$(toml_escape "$(env_value CLOUDFLARE_API_TOKEN)")"
+			use_sandbox = $sandbox
+		EOF
+	else
+		cat >"$config_file" <<-EOF
+			default_profile = "default"
+
+			[profiles.default]
+			provider = "namecheap"
+			api_user = "$(toml_escape "$(env_value NAMECHEAP_API_USER)")"
+			api_key = "$(toml_escape "$(env_value NAMECHEAP_API_KEY)")"
+			username = "$(toml_escape "$(env_value NAMECHEAP_USERNAME)")"
+			client_ip = "$(toml_escape "$(env_value NAMECHEAP_CLIENT_IP)")"
+			use_sandbox = $sandbox
+		EOF
+	fi
 	chmod 600 "$config_file"
-	echo "Wrote credentials from .env to $config_file (mode 600)."
+	echo "Wrote $provider credentials from .env to $config_file (mode 600)."
 fi
 
 echo

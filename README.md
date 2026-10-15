@@ -4,7 +4,8 @@
 
 **Find available domain names from your terminal.**
 
-Fast, cached, batch domain availability checks powered by the Namecheap API.
+Fast, cached, batch domain availability checks powered by the Namecheap API
+or the Cloudflare Registrar API.
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/bsamson00/dotseek)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -35,22 +36,24 @@ myapp.how  myapp.ing  myapp.ink  myapp.kim  myapp.lat
 
 | | |
 |---|---|
-| **Batch checking** | Up to 50 domains per API call, with bounded retries and backoff |
+| **Two providers** | Namecheap or Cloudflare Registrar, chosen per profile or by environment |
+| **Batch checking** | Up to 50 domains per API call (20 on Cloudflare), with bounded retries and backoff |
 | **Smart caching** | Configurable cache age, offline mode, stale labeling, atomic writes |
 | **TLD filtering** | Filter by length (`<=3`, `>=5`) or by include and exclude keywords |
-| **Premium pricing** | Registration and renewal prices when Namecheap provides them |
+| **Premium pricing** | Registration and renewal prices when the provider returns them |
 | **Whois lookup** | RDAP with a fallback to the system `whois` command |
 | **Adaptive display** | Grid sized to your terminal, grouped by TLD length |
 | **Structured export** | JSON, XML, YAML, TOML, or CSV, to a file or stdout |
 | **International domains** | Unicode input normalized to IDNA/Punycode |
-| **Profiles** | Named credential profiles, including Namecheap's sandbox |
+| **Profiles** | Named credential profiles, including each provider's sandbox |
 | **Automation friendly** | Dry runs, stable exit codes, clean stdout/stderr split |
 | **Shell integration** | `doctor`, `version`, completions, and a man page |
 
 ## Installation
 
-**Requirements:** Go 1.26.5 or newer and a Namecheap account with
-[API access](https://www.namecheap.com/support/api/intro/) enabled. The
+**Requirements:** Go 1.26.5 or newer and either a Namecheap account with
+[API access](https://www.namecheap.com/support/api/intro/) enabled or a
+Cloudflare account with an API token that has Registrar permissions. The
 `whois` command is optional and only used as a fallback for `-w`.
 
 ### Go
@@ -81,16 +84,32 @@ go build -o dotseek
 
 ## Configuration
 
+DotSeek talks to one registrar API per run. Pick it with `DOTSEEK_PROVIDER`
+or a profile's `provider` field (`namecheap` or `cloudflare`). When neither is
+set, Cloudflare is used if only `CLOUDFLARE_*` credentials are present, and
+Namecheap otherwise, so existing setups keep working.
+
 ### Namecheap credentials
 
 1. Log in to Namecheap and open **Profile > Tools > Namecheap API**.
 2. Enable API access and whitelist your public IP address.
 3. Note your API key and API username.
 
+### Cloudflare credentials
+
+1. Find your account ID on the Cloudflare dashboard overview page.
+2. Create an API token under **Manage Account > API Tokens** with Registrar
+   permissions.
+
+The Cloudflare Registrar API is in beta and covers a subset of extensions.
+Domains on extensions the API does not support are reported as unknown with
+the `unsupported_tld` error code, and premium domains are listed without a
+price because the beta does not return premium pricing.
+
 ### Environment variables
 
 Copy `.env.example` to `.env` in your working directory, or export the
-variables in your shell:
+variables in your shell. For Namecheap:
 
 ```sh
 NAMECHEAP_API_USER=your_api_username
@@ -98,6 +117,14 @@ NAMECHEAP_API_KEY=your_api_key
 NAMECHEAP_USERNAME=your_account_username
 NAMECHEAP_CLIENT_IP=your_whitelisted_ip
 NAMECHEAP_USE_SANDBOX=false   # optional, true uses the sandbox API
+```
+
+For Cloudflare:
+
+```sh
+CLOUDFLARE_ACCOUNT_ID=your_account_id
+CLOUDFLARE_API_TOKEN=your_api_token
+CLOUDFLARE_USE_SANDBOX=false  # optional, true uses the registrar-sandbox endpoints
 ```
 
 ### Named profiles
@@ -109,6 +136,7 @@ Profiles live in `$XDG_CONFIG_HOME/dotseek/config.toml` (normally
 default_profile = "production"
 
 [profiles.production]
+provider = "namecheap"
 api_user = "your_api_username"
 api_key = "your_api_key"
 username = "your_account_username"
@@ -116,14 +144,21 @@ client_ip = "203.0.113.10"
 use_sandbox = false
 
 [profiles.sandbox]
+provider = "namecheap"
 api_user = "your_sandbox_username"
 api_key = "your_sandbox_key"
 username = "your_sandbox_username"
 client_ip = "203.0.113.10"
 use_sandbox = true
+
+[profiles.cloudflare]
+provider = "cloudflare"
+account_id = "your_account_id"
+api_token = "your_api_token"
+use_sandbox = false
 ```
 
-Select a profile with `--profile sandbox` or `DOTSEEK_PROFILE=sandbox`.
+Select a profile with `--profile cloudflare` or `DOTSEEK_PROFILE=cloudflare`.
 
 > [!NOTE]
 > Precedence, highest first: process environment variables, then profile
@@ -321,9 +356,10 @@ dotseek man > dotseek.1            # man page
 
 ### Rate limiting
 
-Requests are sent in batches of up to 50 domains with a 30 second timeout and
-a 1000 ms pause between batches. Tune the pause with `--delay`: `--delay 0`
-is fine for small queries, while larger values help on big multi-batch runs.
+Requests are sent in batches of up to 50 domains (20 with Cloudflare) with a
+60 second timeout and a 1000 ms pause between batches. Tune the pause with
+`--delay`: `--delay 0` is fine for small queries, while larger values help on
+big multi-batch runs.
 Timeouts, HTTP 408/425/429, and 5xx responses are retried with exponential
 backoff, jitter, and `Retry-After` support.
 
@@ -332,8 +368,9 @@ backoff, jitter, and `Retry-After` support.
 <details>
 <summary><b>Missing required environment variables</b></summary>
 
-Set all four `NAMECHEAP_*` credentials in `.env`, your shell, or a profile.
-Run `dotseek doctor` to see what is missing.
+Set all four `NAMECHEAP_*` credentials, or `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN`, in `.env`, your shell, or a profile. Run
+`dotseek doctor` to see what is missing.
 
 </details>
 

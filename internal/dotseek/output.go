@@ -192,38 +192,34 @@ func printResultsByTLDLength(results []ProcessedResult) {
 	}
 }
 
+// processAPIResponseChunk caches and formats validated provider results.
+// Unsupported domains are neither cached nor displayed; the caller reports
+// them as unresolved.
 func processAPIResponseChunk(
-	apiResp *NamecheapAPIResponse,
+	checks []domainCheck,
 	showAll, includePremium bool,
 	explicitMap map[string]bool,
 	cacheData map[string]CacheEntry,
 	useCache bool,
 ) []ProcessedResult {
 	var out []ProcessedResult
-	if apiResp == nil {
-		fmt.Fprintln(commandStderr, "Error: nil API response")
-		return out
-	}
-
-	for _, r := range apiResp.CommandResponse.DomainCheckResult {
-		domain := r.Domain
-		avail := r.Available == "true"
-		prem := r.IsPremiumName == "true"
+	for _, check := range checks {
+		if check.Unsupported {
+			continue
+		}
+		domain := check.Domain
 		if useCache {
 			addDomainToCache(cacheData, domain, CachedDomainAttributes{
 				Domain:                   domain,
-				Available:                r.Available,
-				IsPremiumName:            r.IsPremiumName,
-				PremiumRegistrationPrice: strings.TrimSpace(r.PremiumRegistrationPrice),
-				PremiumRenewalPrice:      strings.TrimSpace(r.PremiumRenewalPrice),
+				Available:                boolString(check.Available),
+				IsPremiumName:            boolString(check.Premium),
+				PremiumRegistrationPrice: check.RegistrationPrice,
+				PremiumRenewalPrice:      check.RenewalPrice,
 			})
 		}
-		wasExp := explicitMap[domain]
 		if res := formatResultForDisplay(
-			domain, avail, prem, wasExp, showAll, includePremium,
-			strings.TrimSpace(r.PremiumRegistrationPrice),
-			strings.TrimSpace(r.PremiumRenewalPrice),
-			"",
+			domain, check.Available, check.Premium, explicitMap[domain], showAll, includePremium,
+			check.RegistrationPrice, check.RenewalPrice, "",
 		); res != nil {
 			out = append(out, *res)
 		}

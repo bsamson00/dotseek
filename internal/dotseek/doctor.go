@@ -89,30 +89,35 @@ func checkRDAP(ctx context.Context, client *http.Client, baseURL string) error {
 	return err
 }
 
-func runDoctor(ctx context.Context, deps runtimeDependencies, activeProfile string) error {
+func runDoctor(ctx context.Context, deps runtimeDependencies, provider domainProvider, activeProfile string) error {
 	checks := make([]doctorCheck, 0, 7)
 	profileDetail := "environment/.env"
 	if activeProfile != "" {
 		profileDetail = activeProfile
 	}
-	if err := validateEnvVars(); err != nil {
+	profileDetail += ", provider " + provider.name()
+	if err := validateEnvVars(provider); err != nil {
 		checks = append(checks, doctorCheck{name: "Configuration", status: "FAIL", detail: err.Error(), failure: true})
 	} else {
 		checks = append(checks, doctorCheck{name: "Configuration", status: "PASS", detail: "profile " + profileDetail})
 	}
 
-	if net.ParseIP(clientIP) == nil {
-		checks = append(checks, doctorCheck{name: "Configured client IP", status: "FAIL", detail: "not a valid IP address", failure: true})
-	} else {
-		checks = append(checks, doctorCheck{name: "Configured client IP", status: "PASS", detail: clientIP})
-	}
+	// Namecheap authenticates the caller's IP against an allowlist; Cloudflare
+	// uses a bearer token, so the IP checks only apply to Namecheap.
+	if providerName == providerNamecheap {
+		if net.ParseIP(clientIP) == nil {
+			checks = append(checks, doctorCheck{name: "Configured client IP", status: "FAIL", detail: "not a valid IP address", failure: true})
+		} else {
+			checks = append(checks, doctorCheck{name: "Configured client IP", status: "PASS", detail: clientIP})
+		}
 
-	if publicIP, err := fetchPublicIP(ctx, deps.tldClient, deps.publicIPURL); err != nil {
-		checks = append(checks, doctorCheck{name: "Public IP", status: "WARN", detail: err.Error()})
-	} else if publicIP != clientIP {
-		checks = append(checks, doctorCheck{name: "Public IP", status: "FAIL", detail: publicIP + " does not match configured IP", failure: true})
-	} else {
-		checks = append(checks, doctorCheck{name: "Public IP", status: "PASS", detail: publicIP + " matches configuration"})
+		if publicIP, err := fetchPublicIP(ctx, deps.tldClient, deps.publicIPURL); err != nil {
+			checks = append(checks, doctorCheck{name: "Public IP", status: "WARN", detail: err.Error()})
+		} else if publicIP != clientIP {
+			checks = append(checks, doctorCheck{name: "Public IP", status: "FAIL", detail: publicIP + " does not match configured IP", failure: true})
+		} else {
+			checks = append(checks, doctorCheck{name: "Public IP", status: "PASS", detail: publicIP + " matches configuration"})
+		}
 	}
 
 	cachePath := cacheFilePath()
@@ -130,14 +135,15 @@ func runDoctor(ctx context.Context, deps runtimeDependencies, activeProfile stri
 		}
 	}
 
-	apiResponse, apiErr := checkDomainChunkAvailability(ctx, deps.apiClient, []string{"example.com"}, displayRetry(commandStdout))
+	apiCheckName := provider.name() + " API"
+	batch, apiErr := checkDomainChunkAvailability(ctx, provider, deps.apiClient, []string{"example.com"}, displayRetry(commandStdout))
 	if apiErr == nil {
-		_, apiErr = validateAPIResponse(apiResponse, []string{"example.com"})
+		_, apiErr = validateBatchResult(batch, []string{"example.com"})
 	}
 	if apiErr != nil {
-		checks = append(checks, doctorCheck{name: "Namecheap API", status: "FAIL", detail: apiErr.Error(), failure: true})
+		checks = append(checks, doctorCheck{name: apiCheckName, status: "FAIL", detail: apiErr.Error(), failure: true})
 	} else {
-		checks = append(checks, doctorCheck{name: "Namecheap API", status: "PASS", detail: "authenticated domain check succeeded"})
+		checks = append(checks, doctorCheck{name: apiCheckName, status: "PASS", detail: "authenticated domain check succeeded"})
 	}
 
 	if err := checkRDAP(ctx, deps.rdapClient, deps.rdapBaseURL); err != nil {
