@@ -127,27 +127,33 @@ func formatResultForDisplay(
 	}
 }
 
-// printResultsGrid lays results out in a row-major grid sized for the current
-// terminal. Color codes are wrapped around the domain only; padding is computed
-// from the visible text width (DomainName + PremiumInfo).
+// printResultsGrid lays results out in a column-major grid (filled top to
+// bottom, then left to right) sized for the current terminal. Color codes are
+// wrapped around the domain only; padding is computed from the visible text
+// width (DomainName + PremiumInfo).
 func printResultsGrid(results []ProcessedResult, cellWidth, cols int) {
-	for i, r := range results {
-		visible := len(r.DomainName) + len(r.PremiumInfo) + len(r.SourceInfo)
-		lastInRow := (i+1)%cols == 0 || i == len(results)-1
+	if len(results) == 0 {
+		return
+	}
+	rows := (len(results) + cols - 1) / cols
+	for row := 0; row < rows; row++ {
+		for i := row; i < len(results); i += rows {
+			r := results[i]
+			visible := len(r.DomainName) + len(r.PremiumInfo) + len(r.SourceInfo)
+			lastInRow := i+rows >= len(results)
 
-		pad := cellWidth - visible
-		if lastInRow {
-			pad = 0
-		}
+			pad := cellWidth - visible
+			if lastInRow {
+				pad = 0
+			}
 
-		name, tld := r.DomainName, ""
-		if dot := strings.Index(r.DomainName, "."); dot >= 0 {
-			name, tld = r.DomainName[:dot], r.DomainName[dot:]
+			name, tld := r.DomainName, ""
+			if dot := strings.Index(r.DomainName, "."); dot >= 0 {
+				name, tld = r.DomainName[:dot], r.DomainName[dot:]
+			}
+			fmt.Fprintf(commandStdout, "%s%s%s%s%s%s%s%s", colorTLD, name, r.ColorPrefix, tld, colorReset, r.PremiumInfo, r.SourceInfo, strings.Repeat(" ", pad))
 		}
-		fmt.Fprintf(commandStdout, "%s%s%s%s%s%s%s%s", colorTLD, name, r.ColorPrefix, tld, colorReset, r.PremiumInfo, r.SourceInfo, strings.Repeat(" ", pad))
-		if lastInRow {
-			fmt.Fprintln(commandStdout)
-		}
+		fmt.Fprintln(commandStdout)
 	}
 }
 
